@@ -1,8 +1,9 @@
 import os
+import os
 import shutil
 import subprocess
-import gzip
 import tempfile
+import zipfile
 
 def create_nopporo_exe(path):
     # ASCII art and message displayed when nopporo.exe is run
@@ -132,14 +133,10 @@ def process_hdi(hdi_path, output_hdi):
         if os.path.exists(exe_filename):
             os.remove(exe_filename)
 
-    # Compress the modified disk image with maximum gzip compression.
-    compressed_output = output_hdi + ".gz"
-    with open(output_hdi, 'rb') as f_in:
-        data = f_in.read()
-    with gzip.open(compressed_output, 'wb', compresslevel=9) as f_out:
-        f_out.write(data)
-    final_name = "disk_modified_compressed.hdi.gz"
-    os.rename(compressed_output, final_name)
+    # Compress the modified disk image with maximum compression into a ZIP file.
+    final_name = "disk_modified_compressed.hdi.zip"
+    with zipfile.ZipFile(final_name, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zipf:
+        zipf.write(output_hdi, arcname=os.path.basename(output_hdi))
     print("Compressed disk image saved as", final_name)
 
 if __name__ == "__main__":
@@ -148,5 +145,4 @@ if __name__ == "__main__":
     if not os.path.exists(input_hdi):
         print(f"Input HDI file '{input_hdi}' not found.")
     else:
-        process_hdi(input_hdi, output_hdi)
-        print(f"Processed HDI file saved as '{output_hdi}'.")
+        ▋
