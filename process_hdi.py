@@ -78,11 +78,11 @@ def process_hdi(hdi_path, output_hdi):
     create_nopporo_exe(exe_filename)
     
     # Use mtools to inject nopporo.exe into the HDI.
-    # Set MTOOLS_SKIP_CHECK to 1 to skip drive type checking.
+    # Instead of using '::/nopporo.exe', specify an explicit drive letter (e.g., a)
     env = os.environ.copy()
     env["MTOOLS_SKIP_CHECK"] = "1"
-    # The following command copies nopporo.exe into the root directory of the disk image.
-    result = subprocess.run(["mcopy", "-i", output_hdi, exe_filename, "::/" + exe_filename],
+    target_path = "::a/" + exe_filename
+    result = subprocess.run(["mcopy", "-i", output_hdi, exe_filename, target_path],
                              capture_output=True, text=True, env=env)
     if result.returncode != 0:
          print("Error injecting nopporo.exe:", result.stderr)
