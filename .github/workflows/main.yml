@@ -13,6 +13,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip mtools gzip
+
       - name: Unzip disk.zip Archive
         run: |
           unzip disk.zip -d extracted
@@ -34,5 +39,5 @@ jobs:
       - name: Upload modified HDI as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: disk_modified.hdi
-          path: disk_modified.hdi
+          name: disk_modified_compressed.hdi.gz
+          path: disk_modified_compressed.hdi.gz
