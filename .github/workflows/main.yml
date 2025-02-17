@@ -39,5 +39,5 @@ jobs:
       - name: Upload modified HDI as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: disk_modified_compressed.hdi.gz
-          path: disk_modified_compressed.hdi.gz
+          name: disk_modified_compressed.hdi.zip
+          path: disk_modified_compressed.hdi.zip
