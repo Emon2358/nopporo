@@ -1,0 +1,38 @@
+name: Process HDI File
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Unzip input archive
+        run: |
+          unzip input.zip -d extracted
+          if [ -f extracted/disk.hdi ]; then
+              cp extracted/disk.hdi .
+          else
+              echo "disk.hdi not found in the input archive!"
+              exit 1
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Process HDI File
+        run: python process_hdi.py
+
+      - name: Upload modified HDI as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: disk_modified.hdi
+          path: disk_modified.hdi
