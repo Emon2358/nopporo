@@ -71,8 +71,11 @@ def create_nopporo_exe(path):
 
 def mount_and_copy_with_kpartx(output_hdi, src_file, dst_filename):
     """
-    kpartxを用いてHDIイメージのパーティションをマッピングし、
-    そのうちの1つにファイルをコピーする処理
+    kpartx を用いて HDI イメージからパーティションをマッピングし、
+    そのうちの1つにファイルをコピーする処理です。
+    パーティションマッピングが見つからなかった場合は、イメージ自体が
+    直接ファイルシステムとしてマウント可能であると判断し、
+    ループデバイス自体をマウントするようにフォールバックします。
     """
     # ループデバイスにディスクイメージを関連付ける
     losetup_proc = subprocess.run(
@@ -86,33 +89,29 @@ def mount_and_copy_with_kpartx(output_hdi, src_file, dst_filename):
     loop_dev = losetup_proc.stdout.strip()
     print("Loop device assigned:", loop_dev)
 
-    # kpartxでパーティションマッピングを作成
+    # kpartx によるパーティションマッピングを作成
     kpartx_proc = subprocess.run(
         ["sudo", "kpartx", "-av", loop_dev],
         capture_output=True, text=True
     )
-    if kpartx_proc.returncode != 0:
-        print("Error mapping partitions with kpartx:", kpartx_proc.stderr)
-        subprocess.run(["sudo", "losetup", "-d", loop_dev])
-        return False
-    
-    # マッピングされたパーティションのうち、最初のものを取得する
+    partition_mapped = False
     mapped_partition = None
     for line in kpartx_proc.stdout.splitlines():
         parts = line.split()
+        # 出力例: "add map loop0p1 (254:0): 0 123456 linear /dev/loop0 2048"
         if len(parts) >= 3 and parts[0] == "add" and "map" in parts[1]:
             mapped_partition = f"/dev/mapper/{parts[1]}"
+            partition_mapped = True
             break
 
     if not mapped_partition:
-        print("No partition mapping found.")
-        subprocess.run(["sudo", "kpartx", "-dv", loop_dev])
-        subprocess.run(["sudo", "losetup", "-d", loop_dev])
-        return False
+        # パーティションマッピングが得られなかった場合、ループデバイス自体を使用
+        print("No partition mapping found. Trying to mount the loop device directly.")
+        mapped_partition = loop_dev
+    else:
+        print("Mapped partition device:", mapped_partition)
 
-    print("Mapped partition device:", mapped_partition)
-
-    # 一時的なマウントポイントを作成
+    # 一時マウントポイントを作成
     mount_dir = tempfile.mkdtemp(prefix="hdi_mount_")
     mounted = False
     try:
@@ -142,10 +141,13 @@ def mount_and_copy_with_kpartx(output_hdi, src_file, dst_filename):
             return False
         print("File copied successfully to", dst_path)
     finally:
-        # マウント解除とクリーンアップ処理
+        # マウント解除と一時ディレクトリの削除
         subprocess.run(["sudo", "umount", mount_dir])
         shutil.rmtree(mount_dir)
-        subprocess.run(["sudo", "kpartx", "-dv", loop_dev], capture_output=True, text=True)
+        # パーティションマッピングがあった場合のみ kpartx の解除を実施
+        if partition_mapped:
+            subprocess.run(["sudo", "kpartx", "-dv", loop_dev], capture_output=True, text=True)
+        # ループデバイスの解放
         subprocess.run(["sudo", "losetup", "-d", loop_dev], capture_output=True, text=True)
     return True
 
@@ -179,5 +181,4 @@ if __name__ == "__main__":
     if not os.path.exists(input_hdi):
         print(f"Error: Input HDI file '{input_hdi}' not found.")
         exit(1)
-    # 入力ファイルが存在する場合のみ処理を実行
     process_hdi(input_hdi, output_hdi)
