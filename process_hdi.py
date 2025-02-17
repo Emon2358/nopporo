@@ -1,7 +1,7 @@
 import os
-import zipfile
-import tempfile
 import shutil
+import subprocess
+import gzip
 
 def create_nopporo_exe(path):
     # ASCII art and message displayed when nopporo.exe is run
@@ -70,29 +70,39 @@ def create_nopporo_exe(path):
         f.write(content)
 
 def process_hdi(hdi_path, output_hdi):
-    # In this implementation, disk.hdi is treated as a ZIP archive. We extract its content,
-    # add the nopporo.exe file, and then re-create the HDI file with maximum compression.
-    temp_dir = tempfile.mkdtemp()
-    try:
-        with zipfile.ZipFile(hdi_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
-    except zipfile.BadZipFile:
-        print("Error: The HDI file is not a valid zip archive.")
-        shutil.rmtree(temp_dir)
-        return
-
-    # Create nopporo.exe in the extracted directory.
-    exe_path = os.path.join(temp_dir, "nopporo.exe")
-    create_nopporo_exe(exe_path)
+    # Copy the original HDI file to a new file so that we keep the original intact.
+    shutil.copy2(hdi_path, output_hdi)
     
-    # Recreate the HDI file with maximum compression (compresslevel=9).
-    with zipfile.ZipFile(output_hdi, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zipf:
-        for root, dirs, files in os.walk(temp_dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, temp_dir)
-                zipf.write(file_path, arcname)
-    shutil.rmtree(temp_dir)
+    # Create nopporo.exe in the working directory
+    exe_filename = "nopporo.exe"
+    create_nopporo_exe(exe_filename)
+    
+    # Use mtools to inject nopporo.exe into the HDI.
+    # Set MTOOLS_SKIP_CHECK to 1 to skip drive type checking.
+    env = os.environ.copy()
+    env["MTOOLS_SKIP_CHECK"] = "1"
+    # The following command copies nopporo.exe into the root directory of the disk image.
+    result = subprocess.run(["mcopy", "-i", output_hdi, exe_filename, "::/" + exe_filename],
+                             capture_output=True, text=True, env=env)
+    if result.returncode != 0:
+         print("Error injecting nopporo.exe:", result.stderr)
+    else:
+         print("Successfully injected nopporo.exe into", output_hdi)
+    
+    # Clean up the temporary exe file.
+    os.remove(exe_filename)
+    
+    # Compress the modified disk image with maximum gzip compression.
+    compressed_output = output_hdi + ".gz"
+    with open(output_hdi, 'rb') as f_in:
+       data = f_in.read()
+    with gzip.open(compressed_output, 'wb', compresslevel=9) as f_out:
+       f_out.write(data)
+       
+    # Rename the compressed file to the final name.
+    final_name = "disk_modified_compressed.hdi.gz"
+    os.rename(compressed_output, final_name)
+    print("Compressed disk image saved as", final_name)
 
 if __name__ == "__main__":
     # Assume disk.hdi is in the repository root.
