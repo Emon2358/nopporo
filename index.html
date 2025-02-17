@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>leaf98</title>
+    <style>
+      body {
+        background: url('https://i.discogs.com/ix4qyx5qSTNlWWxBRLsftfi-Dli50W4o_Yq4dBpZOFI/rs:fit/g:sm/q:90/h:384/w:382/czM6Ly9kaXNjb2dz/LWRhdGFiYXNlLWlt/YWdlcy9SLTUzNzUy/OTQtMTM5MTgzMjIw/OC04MjgyLmpwZWc.jpeg') no-repeat center center fixed;
+        background-size: cover;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 20px;
+      }
+      .emscripten_border {
+        border: 1px solid black;
+        margin-bottom: 20px;
+      }
+      canvas.emscripten {
+        border: 0px none;
+      }
+      .controls {
+        margin-top: 20px;
+        text-align: center;
+      }
+      .droparea {
+        border: 2px dashed #000;
+        padding: 20px;
+        text-align: center;
+        width: 80%;
+        max-width: 600px;
+        margin-top: 20px;
+      }
+      @media screen and (min-resolution: 2dppx) {
+        canvas { image-rendering: pixelated; image-rendering: -moz-crisp-edges; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="emscripten_border">
+        <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+      </div>
+      <div class="controls">
+        <input type="checkbox" id="resize">Resize canvas
+        <input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer
+        &nbsp;&nbsp;&nbsp;
+        <input type="button" value="Fullscreen" onclick="Module.requestFullScreen(document.getElementById('pointerLock').checked,
+                                                                                      document.getElementById('resize').checked)">
+        &nbsp;&nbsp;&nbsp;
+        <input type="button" value="NP2 Fullscreen" id="btn-fullscreen">
+      </div>
+      <div class="droparea" id="droparea">
+        Drag & drop FDD/HDD disk images here!
+      </div>
+      <div>
+        FDD1:
+        <select id="fdd1">
+          <option value="">(ejected)</option>
+        </select>
+        FDD2:
+        <select id="fdd2">
+          <option value="">(ejected)</option>
+        </select>
+      </div>
+    </div>
+    <script type="module">
+      import {NP2, NP21} from "https://unpkg.com/np2-wasm/dist/np2-wasm.js";
+
+      const canvas = document.getElementById('canvas');
+      const droparea = document.getElementById('droparea');
+      const fddSelects = ['fdd1', 'fdd2'].map((id) => document.getElementById(id));
+      let np2;
+
+      // Add event listener for NP2 Fullscreen button
+      const btnFullscreen = document.getElementById('btn-fullscreen');
+      btnFullscreen.addEventListener('click', () => {
+        if (canvas.requestFullscreen) {
+          canvas.requestFullscreen();
+        } else if (canvas.webkitRequestFullscreen) {
+          canvas.webkitRequestFullscreen();
+        } else if (canvas.msRequestFullscreen) {
+          canvas.msRequestFullscreen();
+        } else {
+          console.log("Fullscreen API is not supported.");
+        }
+      });
+
+      async function create_np2() {
+          if (np2) return;
+          np2 = await NP21.create({
+              canvas: canvas,
+              clk_mult: 8,
+              Latencys: 120,
+              onDiskChange: (name) => console.log(name + ' changed'),
+              onExit: () => { np2.reset(); }
+          });
+      }
+
+      async function addImage(file, is_fdd) {
+          np2.addDiskImage(file.name, new Uint8Array(await file.arrayBuffer()));
+          if (is_fdd) {
+              for (const select of fddSelects) {
+                  let option = document.createElement('option');
+                  option.setAttribute('value', file.name);
+                  option.textContent = file.name;
+                  select.appendChild(option);
+              }
+              if (np2.state === 'ready' && fddSelects[0].value === '') {
+                  fddSelects[0].value = file.name;
+                  np2.setFdd(0, file.name);
+              }
+          } else {
+              np2.setHdd(0, file.name);
+          }
+      }
+
+      droparea.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+      });
+
+      droparea.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          const files = e.dataTransfer.files;
+          let readyToRun = false;
+          for (const file of files) {
+              if (file.name.match(/\.(d88|88d|d98|98d|fdi|xdf|hdm|dup|2hd|tfd|img)$/i)) {
+                  await create_np2();
+                  await addImage(file, true);
+                  readyToRun = true;
+              } else if (file.name.match(/\.(thd|nhd|hdi)$/i)) {
+                  await create_np2();
+                  await addImage(file, false);
+                  readyToRun = true;
+              } else {
+                  console.log(`unrecognized image type: ${file.name}`);
+              }
+          }
+          if (np2.state === 'ready' && readyToRun) {
+              np2.run();
+          }
+      });
+    </script>
+  </body>
+</html>
