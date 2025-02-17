@@ -145,4 +145,3 @@ if __name__ == "__main__":
     if not os.path.exists(input_hdi):
         print(f"Input HDI file '{input_hdi}' not found.")
     else:
-        ▋
