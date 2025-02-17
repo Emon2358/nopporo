@@ -144,4 +144,5 @@ if __name__ == "__main__":
     output_hdi = "disk_modified.hdi"
     if not os.path.exists(input_hdi):
         print(f"Input HDI file '{input_hdi}' not found.")
-    else:
+    else:process_hdi(input_hdi, output_hdi)
+
