@@ -13,13 +13,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Unzip input archive
+      - name: Unzip disk.zip Archive
         run: |
-          unzip input.zip -d extracted
+          unzip disk.zip -d extracted
           if [ -f extracted/disk.hdi ]; then
               cp extracted/disk.hdi .
           else
-              echo "disk.hdi not found in the input archive!"
+              echo "disk.hdi not found in the extracted archive!"
               exit 1
           fi
 
