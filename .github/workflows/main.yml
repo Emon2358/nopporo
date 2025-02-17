@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # リポジトリの全履歴を取得するために追加
+          fetch-depth: 0  # 全履歴を取得して、git pull --rebaseが正常に動作するようにする
 
       - name: Install Dependencies
         run: |
@@ -48,7 +48,7 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          # リモートの変更を取り込み、ローカルブランチを最新化
+          # リモートの変更を取り込み、ローカルブランチを最新状態にする
           git pull --rebase origin main
           git add disk_modified_compressed.hdi.zip
           git commit -m "Add updated disk_modified_compressed.hdi.zip" || echo "No changes to commit."
