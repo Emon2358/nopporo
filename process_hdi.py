@@ -4,7 +4,7 @@ import tempfile
 import shutil
 
 def create_nopporo_exe(path):
-    # ASCII artとメッセージ（nopporo.exe実行時に表示される内容）
+    # ASCII art and message displayed when nopporo.exe is run
     ascii_art = r"""
  
                                                 :=*************+:                                   
@@ -65,13 +65,13 @@ def create_nopporo_exe(path):
     """
     message = "created by Emon support by nopporo"
     content = ascii_art + "\n" + message + "\n"
-    # ダミーの実行可能ファイルとして、テキスト内容を書き出す
+    # Write the dummy executable file that outputs the ASCII art and message.
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
 def process_hdi(hdi_path, output_hdi):
-    # ここでは disk.hdi を zip アーカイブとして扱い、一度展開してからファイルを追加し、
-    # 最大圧縮で再びアーカイブ（拡張子は .hdi として出力）する
+    # In this implementation, disk.hdi is treated as a ZIP archive. We extract its content,
+    # add the nopporo.exe file, and then re-create the HDI file with maximum compression.
     temp_dir = tempfile.mkdtemp()
     try:
         with zipfile.ZipFile(hdi_path, 'r') as zip_ref:
@@ -81,11 +81,11 @@ def process_hdi(hdi_path, output_hdi):
         shutil.rmtree(temp_dir)
         return
 
-    # 展開したディレクトリに nopporo.exe を作成
+    # Create nopporo.exe in the extracted directory.
     exe_path = os.path.join(temp_dir, "nopporo.exe")
     create_nopporo_exe(exe_path)
     
-    # temp_dir の内容を最大圧縮（compresslevel=9）で新たなHDIファイルとして再作成
+    # Recreate the HDI file with maximum compression (compresslevel=9).
     with zipfile.ZipFile(output_hdi, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zipf:
         for root, dirs, files in os.walk(temp_dir):
             for file in files:
@@ -95,7 +95,7 @@ def process_hdi(hdi_path, output_hdi):
     shutil.rmtree(temp_dir)
 
 if __name__ == "__main__":
-    # リポジトリ直下に disk.hdi が存在する前提
+    # Assume disk.hdi is in the repository root.
     input_hdi = "disk.hdi"
     output_hdi = "disk_modified.hdi"
     if not os.path.exists(input_hdi):
