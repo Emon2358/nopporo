@@ -36,7 +36,6 @@ jobs:
       - name: Process HDI File
         run: |
           python process_hdi.py
-          mv disk_modified_compressed.hdi.zip $GITHUB_WORKSPACE/
 
       - name: Upload modified HDI as artifact
         uses: actions/upload-artifact@v4
@@ -49,5 +48,5 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git add disk_modified_compressed.hdi.zip
-          git commit -m "Add updated disk_modified_compressed.hdi.zip"
+          git commit -m "Add updated disk_modified_compressed.hdi.zip" || echo "No changes to commit."
           git push origin main
