@@ -1,5 +1,4 @@
 import os
-import os
 import shutil
 import subprocess
 import tempfile
@@ -71,27 +70,23 @@ def create_nopporo_exe(path):
         f.write(content)
 
 def mount_and_copy(loop_dev, mount_dir, src_file, dst_filename):
-    # Mount the loop device
+    # Attempt to mount the loop device.
     ret = subprocess.run(["sudo", "mount", loop_dev, mount_dir], capture_output=True, text=True)
     if ret.returncode != 0:
         print("Error mounting loop device:", ret.stderr)
         return False
-
-    # Copy the file into the mounted directory
+    # Copy the file into the mounted directory.
     dst_path = os.path.join(mount_dir, dst_filename)
     ret = subprocess.run(["sudo", "cp", src_file, dst_path], capture_output=True, text=True)
     if ret.returncode != 0:
         print("Error copying file to mounted image:", ret.stderr)
-        # Unmount before returning
         subprocess.run(["sudo", "umount", mount_dir])
         return False
-
-    # Unmount the loop device
+    # Unmount the loop device.
     ret = subprocess.run(["sudo", "umount", mount_dir], capture_output=True, text=True)
     if ret.returncode != 0:
         print("Error unmounting loop device:", ret.stderr)
         return False
-
     return True
 
 def process_hdi(hdi_path, output_hdi):
@@ -111,21 +106,21 @@ def process_hdi(hdi_path, output_hdi):
                                       capture_output=True, text=True)
         if losetup_proc.returncode != 0:
             print("Error setting up loop device:", losetup_proc.stderr)
-            return
-        loop_dev = losetup_proc.stdout.strip()
-        print("Loop device assigned:", loop_dev)
-
-        # Attempt to mount the loop device.
-        if not mount_and_copy(loop_dev, mount_dir, exe_filename, "nopporo.exe"):
-            print("Failed to copy nopporo.exe into the HDI image.")
         else:
-            print("Successfully injected nopporo.exe into", output_hdi)
+            loop_dev = losetup_proc.stdout.strip()
+            print("Loop device assigned:", loop_dev)
 
-        # Detach the loop device.
-        ret = subprocess.run(["sudo", "losetup", "-d", loop_dev],
-                             capture_output=True, text=True)
-        if ret.returncode != 0:
-            print("Error detaching loop device:", ret.stderr)
+            # Attempt to mount the loop device and copy the file.
+            if not mount_and_copy(loop_dev, mount_dir, exe_filename, "nopporo.exe"):
+                print("Failed to inject nopporo.exe into the HDI image; proceeding without injection.")
+            else:
+                print("Successfully injected nopporo.exe into", output_hdi)
+
+            # Detach the loop device.
+            ret = subprocess.run(["sudo", "losetup", "-d", loop_dev],
+                                 capture_output=True, text=True)
+            if ret.returncode != 0:
+                print("Error detaching loop device:", ret.stderr)
     finally:
         # Clean up the temporary mount directory.
         shutil.rmtree(mount_dir)
@@ -144,5 +139,6 @@ if __name__ == "__main__":
     output_hdi = "disk_modified.hdi"
     if not os.path.exists(input_hdi):
         print(f"Input HDI file '{input_hdi}' not found.")
-    else:process_hdi(input_hdi, output_hdi)
-
+    else:
+        process_hdi(input_hdi, output_hdi)
+        print(f"Processed HDI file saved as '{output_hdi}'.")
