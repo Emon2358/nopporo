@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # 全履歴を取得して、git pull --rebaseが正常に動作するようにする
+          fetch-depth: 0  # 全履歴を取得して、git pull --rebase が正常に動作するようにする
 
       - name: Install Dependencies
         run: |
