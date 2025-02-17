@@ -112,7 +112,6 @@ def mount_and_copy_with_kpartx(output_hdi, src_file, dst_filename):
     mount_dir = tempfile.mkdtemp(prefix="hdi_mount_")
     mounted = False
     try:
-        # まずはファイルシステムタイプ指定なしで自動検出を試行
         print(f"Trying to mount {mapped_partition} on {mount_dir} without specifying fs type...")
         cmd = ["sudo", "mount", mapped_partition, mount_dir]
         ret = subprocess.run(cmd, capture_output=True, text=True)
@@ -121,7 +120,6 @@ def mount_and_copy_with_kpartx(output_hdi, src_file, dst_filename):
             mounted = True
         else:
             print("Auto mount failed:", ret.stderr)
-            # その後、一般的なファイルシステムタイプで試行（iso9660 を追加）
             for fs_type in ["vfat", "msdos", "ntfs", "ext2", "ext3", "ext4", "iso9660"]:
                 print(f"Trying to mount {mapped_partition} on {mount_dir} as {fs_type}...")
                 cmd = ["sudo", "mount", "-t", fs_type, mapped_partition, mount_dir]
@@ -162,19 +160,44 @@ def process_hdi(hdi_path, output_hdi):
     exe_filename = "nopporo.exe"
     create_nopporo_exe(exe_filename)
 
-    # マウントしてファイルをコピーする方法で注入を試みる
+    # まずはマウント＋コピーによる注入を試みる
     if not mount_and_copy_with_kpartx(output_hdi, exe_filename, "nopporo.exe"):
-        print("Mount injection failed. Trying mcopy injection for FAT file system.")
-        # mtools を利用して FAT イメージへコピーを試行
-        ret = subprocess.run(
-            ["mcopy", "-i", output_hdi, exe_filename, "::/nopporo.exe"],
-            capture_output=True, text=True
-        )
-        if ret.returncode == 0:
-            print("Successfully injected nopporo.exe via mcopy.")
+        print("Mount injection failed. Trying pyfatfs injection for FAT file system.")
+        try:
+            from pyfatfs import PyFat
+        except ImportError as e:
+            print("pyfatfs not installed; falling back to appending nopporo.exe to the disk image.")
+            use_pyfat = False
         else:
-            print("mcopy injection failed:", ret.stderr)
-            print("Falling back to appending nopporo.exe to the disk image.")
+            use_pyfat = True
+
+        if use_pyfat:
+            try:
+                pf = PyFat()
+                with open(output_hdi, "r+b") as fat_image:
+                    pf.open_fat(fat_image)
+                    # FAT系は大文字推奨なのでルート直下に /NOPPORO.EXE として作成
+                    pf.create_file("/NOPPORO.EXE")
+                    with pf.open("/NOPPORO.EXE", "wb") as f:
+                        with open(exe_filename, "rb") as f_exe:
+                            data = f_exe.read()
+                        f.write(data)
+                    # 変更内容を反映
+                    fat_image.seek(0)
+                    fat_image.write(pf.get_image())
+                print("Successfully injected nopporo.exe using pyfatfs.")
+            except Exception as e:
+                print("pyfatfs injection failed:", e)
+                print("Falling back to appending nopporo.exe to the disk image.")
+                try:
+                    with open(exe_filename, "rb") as f_exe:
+                        exe_data = f_exe.read()
+                    with open(output_hdi, "ab") as f_hdi:
+                        f_hdi.write(exe_data)
+                    print("Successfully appended nopporo.exe to the disk image.")
+                except Exception as e2:
+                    print("Error appending nopporo.exe:", e2)
+        else:
             try:
                 with open(exe_filename, "rb") as f_exe:
                     exe_data = f_exe.read()
