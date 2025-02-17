@@ -5,7 +5,7 @@ import tempfile
 import zipfile
 
 def create_nopporo_exe(path):
-    # ASCIIアートとメッセージを含むnopporo.exeの内容を作成
+    # ASCIIアートとメッセージを含む nopporo.exe の内容を作成
     ascii_art = r"""
    
                                             .....-+***********+-.....                               
@@ -71,11 +71,9 @@ def create_nopporo_exe(path):
 
 def mount_and_copy_with_kpartx(output_hdi, src_file, dst_filename):
     """
-    kpartx を用いて HDI イメージからパーティションをマッピングし、
-    そのうちの1つにファイルをコピーする処理です。
-    パーティションマッピングが見つからなかった場合は、イメージ自体が
-    直接ファイルシステムとしてマウント可能であると判断し、
-    ループデバイス自体をマウントするようにフォールバックします。
+    kpartx を用いて HDI イメージからパーティションをマッピングし、そのパーティションに
+    ファイルをコピーする処理です。パーティションマッピングが見つからなかった場合は、
+    ループデバイス自体をマウントするフォールバックを試みます。
     """
     # ループデバイスにディスクイメージを関連付ける
     losetup_proc = subprocess.run(
@@ -105,7 +103,6 @@ def mount_and_copy_with_kpartx(output_hdi, src_file, dst_filename):
             break
 
     if not mapped_partition:
-        # パーティションマッピングが得られなかった場合、ループデバイス自体を使用
         print("No partition mapping found. Trying to mount the loop device directly.")
         mapped_partition = loop_dev
     else:
@@ -144,10 +141,8 @@ def mount_and_copy_with_kpartx(output_hdi, src_file, dst_filename):
         # マウント解除と一時ディレクトリの削除
         subprocess.run(["sudo", "umount", mount_dir])
         shutil.rmtree(mount_dir)
-        # パーティションマッピングがあった場合のみ kpartx の解除を実施
         if partition_mapped:
             subprocess.run(["sudo", "kpartx", "-dv", loop_dev], capture_output=True, text=True)
-        # ループデバイスの解放
         subprocess.run(["sudo", "losetup", "-d", loop_dev], capture_output=True, text=True)
     return True
 
@@ -155,13 +150,21 @@ def process_hdi(hdi_path, output_hdi):
     # オリジナルのHDIファイルをバックアップとしてコピー
     shutil.copy2(hdi_path, output_hdi)
 
-    # 作業用ディレクトリにnopporo.exeを作成
+    # 作業用ディレクトリに nopporo.exe を作成
     exe_filename = "nopporo.exe"
     create_nopporo_exe(exe_filename)
 
-    # kpartxを使い、HDIイメージ内のパーティションにファイルを注入
+    # まずはマウントしてファイルをコピーする方法で注入を試みる
     if not mount_and_copy_with_kpartx(output_hdi, exe_filename, "nopporo.exe"):
-        print("Failed to inject nopporo.exe into the HDI image; proceeding without injection.")
+        print("Mount injection failed. Falling back to appending nopporo.exe to the disk image.")
+        try:
+            with open(exe_filename, "rb") as f_exe:
+                exe_data = f_exe.read()
+            with open(output_hdi, "ab") as f_hdi:
+                f_hdi.write(exe_data)
+            print("Successfully appended nopporo.exe to the disk image.")
+        except Exception as e:
+            print("Error appending nopporo.exe:", e)
     else:
         print("Successfully injected nopporo.exe into", output_hdi)
 
@@ -169,7 +172,7 @@ def process_hdi(hdi_path, output_hdi):
     if os.path.exists(exe_filename):
         os.remove(exe_filename)
 
-    # HDIイメージをZIP圧縮（最大圧縮）して保存
+    # HDI イメージを ZIP 圧縮（最大圧縮）して保存
     final_name = "disk_modified_compressed.hdi.zip"
     with zipfile.ZipFile(final_name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zipf:
         zipf.write(output_hdi, arcname=os.path.basename(output_hdi))
